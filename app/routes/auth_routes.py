@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from app import db
+from app import db, bcrypt
 from app.models.user import User
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import (
@@ -7,7 +7,6 @@ from flask_jwt_extended import (
     get_jwt_identity
 )
 
-bcrypt = Bcrypt()
 auth_bp = Blueprint('auth', __name__)
 
 @auth_bp.route('/register', methods=['POST'])
@@ -60,3 +59,22 @@ def login():
         return jsonify(access_token=access_token), 200
     else:
         return jsonify(message="Credenciales inválidas"), 401
+    
+@auth_bp.route('/profile', methods=['GET'])
+@jwt_required()
+def profile():
+    # Obtenemos el usuario actual desde el token
+    identity = get_jwt_identity()
+    user = User.query.get(identity['id'])
+
+    if not user:
+        return jsonify(message="Usuario no encontrado"), 404
+
+    return jsonify({
+        'id': user.id,
+        'username': user.username,
+        'email': user.email,
+        'role': user.role,
+        'created_at': user.created_at,
+        'email_confirmed': user.email_confirmed
+    }), 200
