@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from flask_bcrypt import Bcrypt
 from app import db
 from flask_jwt_extended import create_access_token, check_password_hash, jwt_required, get_jwt_identity
-from app.models.User import User
+from app.models.User import User # type: ignore
 from utils import send_verification_email, send_password_reset_email
 import uuid
 

@@ -1,5 +1,5 @@
 # app/__init__.py
-from flask import Flask
+from flask import Flask, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_cors import CORS
@@ -17,8 +17,13 @@ load_dotenv()
 
 def create_app():
     app = Flask(__name__)
+    @app.route("/api/ping")
+    def ping():
+        return jsonify({"message": "pong!"})
     
     # Configuración básica
+    from app.routes.test_routes import test_bp
+    app.register_blueprint(test_bp, url_prefix='/api/test')
     app.config.from_object('app.config.Config')
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///kupula.db'
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or 'tu_clave_secreta_por_defecto'
@@ -27,7 +32,7 @@ def create_app():
     # Habilitar CORS para toda la aplicación o rutas específicas
     CORS(app, resources={
         r"/api/*": {
-            "origins": "http://localhost:5173",
+            "origins": "http://localhost:5178",
             "supports_credentials": True
         }
     })
