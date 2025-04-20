@@ -17,12 +17,19 @@ def validate_email(email):
 
 def validate_password(password):
     """Valida que la contraseña tenga al menos 8 caracteres"""
-    return len(password) >= 8
+    if len(password) < 8:
+        return False
+    # Validación adicional de la contraseña (al menos una letra mayúscula, al menos un número)
+    if not re.search(r'[A-Z]', password):
+        return False
+    if not re.search(r'\d', password):
+        return False
+    return True
 
 @auth_bp.route('/register', methods=['POST'])
 def register():
     data = request.get_json()
-    
+
     # Validaciones básicas
     required_fields = ['username', 'email', 'password']
     if not all(field in data for field in required_fields):
@@ -32,10 +39,10 @@ def register():
         return jsonify(message="Formato de email inválido"), 400
 
     if not validate_password(data['password']):
-        return jsonify(message="La contraseña debe tener al menos 8 caracteres"), 400
+        return jsonify(message="La contraseña debe tener al menos 8 caracteres, una letra mayúscula y un número"), 400
 
     # Verificar existencia de usuario
-    if User.query.filter(db.or_(User.email==data['email'], User.username==data['username'])).first():
+    if User.query.filter(db.or_(User.email == data['email'], User.username == data['username'])).first():
         return jsonify(message="Email o nombre de usuario ya registrados"), 409  # 409 Conflict
 
     try:
@@ -73,7 +80,7 @@ def register():
 @auth_bp.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
-    
+
     if not data or not data.get('email') or not data.get('password'):
         return jsonify(message="Email y contraseña son requeridos"), 400
 
@@ -126,3 +133,11 @@ def profile():
         'role': user.role,
         'created_at': user.created_at.isoformat() if user.created_at else None
     }), 200
+@auth_bp.route('/check_db', methods=['GET'])
+def check_db():
+    try:
+        # Realiza una consulta simple a la base de datos
+        db.session.execute('SELECT 1')
+        return jsonify(message="Conexión a la base de datos exitosa"), 200
+    except Exception as e:
+        return jsonify(message=f"Error al conectar a la base de datos: {str(e)}"), 500

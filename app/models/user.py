@@ -10,7 +10,7 @@ class User(db.Model):
     password = db.Column(db.String(200), nullable=False)
     role = db.Column(db.String(50), default="user")
     email_confirmed = db.Column(db.Boolean, default=False)
-    email_confirmation_token = db.Column(db.String(100), unique=True)
+    email_confirmation_token = db.Column(db.String(100), unique=True, nullable=True)
     password_reset_token = db.Column(db.String(120), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
