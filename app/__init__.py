@@ -17,13 +17,11 @@ load_dotenv()
 
 def create_app():
     app = Flask(__name__)
-    @app.route("/api/ping")
+    @app.route("/api/test/ping")
     def ping():
         return jsonify({"message": "pong!"})
     
     # Configuración básica
-    from app.routes.test_routes import test_bp
-    app.register_blueprint(test_bp, url_prefix='/api/test')
     app.config.from_object('app.config.Config')
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///kupula.db'
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or 'tu_clave_secreta_por_defecto'
@@ -32,7 +30,7 @@ def create_app():
     # Habilitar CORS para toda la aplicación o rutas específicas
     CORS(app, resources={
         r"/api/*": {
-            "origins": "http://localhost:5173",
+            "origins": "http://localhost:5175",
             "supports_credentials": True
         }
     })
@@ -46,9 +44,11 @@ def create_app():
     # Importar blueprints aquí para evitar importaciones circulares
     from app.routes.auth_routes import auth_bp
     from app.routes.cursos import cursos_bp
+    from app.routes.test_routes import test_bp
     
     # Registrar blueprints
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(cursos_bp, url_prefix='/api/cursos')
+    app.register_blueprint(test_bp, url_prefix='/api/test')
     
     return app
