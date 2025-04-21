@@ -32,7 +32,7 @@ def create_app():
     # Habilitar CORS para toda la aplicación o rutas específicas
     CORS(app, resources={
         r"/api/*": {
-            "origins": "http://localhost:5175",
+            "origins": "http://localhost:5173",
             "supports_credentials": True
         }
     })
