@@ -19,6 +19,7 @@ def create_app():
     app = Flask(__name__)
     @app.route("/api/test/ping")
     def ping():
+        
         return jsonify({"message": "pong!"})
     
     # Configuración básica
@@ -30,7 +31,7 @@ def create_app():
     # Habilitar CORS para toda la aplicación o rutas específicas
     CORS(app, resources={
         r"/api/*": {
-            "origins": "http://localhost:5175",
+            "origins": "http://localhost:5173",
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             "allow_headers": ["Content-Type", "Authorization"] 
         }

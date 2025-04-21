@@ -42,7 +42,7 @@ def register():
         return jsonify(message="La contraseña debe tener al menos 8 caracteres, una letra mayúscula y un número"), 400
 
     # Verificar existencia de usuario
-    if User.query.filter(db.or_(User.email == data['email'], User.username == data['username'])).first():
+    if User.query.filter(db.or_(User.email == data['email'], User.name == data['username'])).first():
         return jsonify(message="Email o nombre de usuario ya registrados"), 409  # 409 Conflict
 
     try:
