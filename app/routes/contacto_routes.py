@@ -1,3 +1,10 @@
+from flask import Blueprint, request, jsonify  # Importa request y jsonify
+from app.models.contacto import Contacto  # Importa el modelo Contacto
+from app import db  # Importa la instancia de SQLAlchemy
+
+# Crea el Blueprint
+contacto_bp = Blueprint('contacto', __name__, url_prefix='/api/contacto')
+
 @contacto_bp.route('', methods=['POST'])
 def crear_contacto():
     if request.method == 'OPTIONS':
