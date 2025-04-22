@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from flask_cors import CORS
 from app import db, bcrypt
 from app.models.user import User
 from flask_jwt_extended import (
@@ -8,7 +9,9 @@ from flask_jwt_extended import (
 from sqlalchemy.exc import SQLAlchemyError
 import re
 
-auth_bp = Blueprint('auth', __name__)
+auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
+CORS(auth_bp, supports_credentials=True)
+
 
 def validate_email(email):
     """Valida el formato del email"""
@@ -26,8 +29,17 @@ def validate_password(password):
         return False
     return True
 
-@auth_bp.route('/register', methods=['POST'])
+
+
+@auth_bp.route('/register', methods=['POST','OPTIONS'])
+@Cors() # type: ignore
 def register():
+    print("\n===== DATOS DE LA PETICIÓN =====")
+    print("Método:", request.method)
+    print("Headers:", dict(request.headers))
+    print("JSON recibido:", request.get_json())
+    print("Datos brutos:", request.data)
+    print("===============================\n")
     data = request.get_json()
 
     # Validaciones básicas
@@ -42,7 +54,7 @@ def register():
         return jsonify(message="La contraseña debe tener al menos 8 caracteres, una letra mayúscula y un número"), 400
 
     # Verificar existencia de usuario
-    if User.query.filter(db.or_(User.email == data['email'], User.name == data['username'])).first():
+    if User.query.filter(db.or_(User.email == data['email'], User.username == data['username'])).first():
         return jsonify(message="Email o nombre de usuario ya registrados"), 409  # 409 Conflict
 
     try:
