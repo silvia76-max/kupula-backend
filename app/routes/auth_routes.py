@@ -32,7 +32,7 @@ def validate_password(password):
 
 
 @auth_bp.route('/register', methods=['POST','OPTIONS'])
-@Cors() # type: ignore
+
 def register():
     print("\n===== DATOS DE LA PETICIÓN =====")
     print("Método:", request.method)
