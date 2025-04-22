@@ -19,19 +19,17 @@ def create_app():
     app = Flask(__name__)
     @app.route("/api/test/ping")
     def ping():
-        
-        return jsonify({"message": "pong!"})
+     return jsonify({"message": "pong!"})
     
     # Configuración básica
     app.config.from_object('app.config.Config')
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///kupula.db'
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or 'tu_clave_secreta_por_defecto'
-    app.config['JWT_SECRET_KEY'] = app.config['SECRET_KEY']  # Importante para JWT
-    CORS(app)
+    app.config['JWT_SECRET_KEY'] = app.config['SECRET_KEY']  
     # Habilitar CORS para toda la aplicación o rutas específicas
     CORS(app, resources={
         r"/api/*": {
-            "origins": "http://localhost:5174",
+            "origins": "http://localhost:5173",
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             "allow_headers": ["Content-Type", "Authorization"] 
         }
@@ -50,7 +48,6 @@ def create_app():
     from app.routes.contacto_routes import contacto_bp
     
     # Registrar blueprints
-    app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(cursos_bp, url_prefix='/api/cursos')
     app.register_blueprint(test_bp, url_prefix='/api/test')
     app.register_blueprint(contacto_bp, url_prefix='/api/contacto')

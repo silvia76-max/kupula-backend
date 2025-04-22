@@ -8,9 +8,10 @@ from flask_jwt_extended import (
 )
 from sqlalchemy.exc import SQLAlchemyError
 import re
+from sqlalchemy import or_
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
-CORS(auth_bp, supports_credentials=True)
+
 
 
 def validate_email(email):
@@ -39,8 +40,9 @@ def register():
     print("Headers:", dict(request.headers))
     print("JSON recibido:", request.get_json())
     print("Datos brutos:", request.data)
+    print("Cuerpo de la solicitud:", request.data)
     print("===============================\n")
-    data = request.get_json()
+    data = request.get_json(force=True)
 
     # Validaciones básicas
     required_fields = ['username', 'email', 'password']
@@ -54,7 +56,7 @@ def register():
         return jsonify(message="La contraseña debe tener al menos 8 caracteres, una letra mayúscula y un número"), 400
 
     # Verificar existencia de usuario
-    if User.query.filter(db.or_(User.email == data['email'], User.username == data['username'])).first():
+    if User.query.filter(or_(User.email == data['email'], User.username == data['username'])).first():
         return jsonify(message="Email o nombre de usuario ya registrados"), 409  # 409 Conflict
 
     try:
