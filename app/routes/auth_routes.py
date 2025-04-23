@@ -12,7 +12,6 @@ import re
 from sqlalchemy import or_
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
-bcrypt = Bcrypt()
 
 
 def validate_email(email):
@@ -82,7 +81,7 @@ def register():
     except SQLAlchemyError as e:
         db.session.rollback()
         return jsonify(message="Error en la base de datos", error=str(e)), 500
-        raise e
+    
 @auth_bp.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
