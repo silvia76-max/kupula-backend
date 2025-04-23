@@ -1,5 +1,6 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, app, request, jsonify
 from flask_cors import CORS
+from flask_bcrypt import Bcrypt
 from app import db, bcrypt
 from app.models.user import User
 from flask_jwt_extended import (
@@ -11,7 +12,7 @@ import re
 from sqlalchemy import or_
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
-
+bcrypt = Bcrypt()
 
 
 def validate_email(email):
@@ -29,19 +30,8 @@ def validate_password(password):
     if not re.search(r'\d', password):
         return False
     return True
-
-
-
-@auth_bp.route('/register', methods=['POST','OPTIONS'])
-
+@auth_bp.route('/register', methods=['POST'])
 def register():
-    print("\n===== DATOS DE LA PETICIÓN =====")
-    print("Método:", request.method)
-    print("Headers:", dict(request.headers))
-    print("JSON recibido:", request.get_json())
-    print("Datos brutos:", request.data)
-    print("Cuerpo de la solicitud:", request.data)
-    print("===============================\n")
     data = request.get_json(force=True)
 
     # Validaciones básicas
@@ -60,14 +50,15 @@ def register():
         return jsonify(message="Email o nombre de usuario ya registrados"), 409  # 409 Conflict
 
     try:
-        hashed_password = bcrypt.generate_password_hash(data['password']).decode('utf-8')
+        # Usar el método set_password del modelo User para encriptar la contraseña
         new_user = User(
             username=data['username'],
             email=data['email'],
-            password=hashed_password,
             role=data.get('role', 'user')
         )
+        new_user.set_password(data['password'])  # Encriptar la contraseña
 
+        # Guardar el nuevo usuario en la base de datos
         db.session.add(new_user)
         db.session.commit()
 
@@ -84,13 +75,14 @@ def register():
         return jsonify(
             message="Usuario registrado correctamente",
             access_token=access_token,
-            refresh_token=refresh_token
+            refresh_token=refresh_token,
+             redirect_url="/login"
         ), 201
-
+    
     except SQLAlchemyError as e:
         db.session.rollback()
         return jsonify(message="Error en la base de datos", error=str(e)), 500
-
+        raise e
 @auth_bp.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
@@ -123,6 +115,10 @@ def login():
             'role': user.role
         }
     ), 200
+@auth_bp.after_request
+def after_request(response):
+    db.session.remove()  # Limpiar la sesión después de cada solicitud
+    return response
 
 @auth_bp.route('/refresh', methods=['POST'])
 @jwt_required(refresh=True)
