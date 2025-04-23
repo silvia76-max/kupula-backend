@@ -1,48 +1,75 @@
-# app/__init__.py
-from flask import Flask, jsonify
+from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_cors import CORS
 from flask_bcrypt import Bcrypt
-from dotenv import load_dotenv 
-import os
 from flask_jwt_extended import JWTManager
+from dotenv import load_dotenv
+import os
+from authlib.integrations.flask_client import OAuth
+
 
 # Inicializar extensiones
 db = SQLAlchemy()
 bcrypt = Bcrypt()
 migrate = Migrate()
 jwt_manager = JWTManager()
+oauth = OAuth()
 
 load_dotenv()
 
 def create_app():
     app = Flask(__name__)
+    
 
     # Configuración básica
     app.config.from_object('app.config.Config')
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///instance/kupula.db'
-    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or 'tu_clave_secreta_por_defecto'
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('SQLALCHEMY_DATABASE_URI', 'sqlite:///instance/kupula.db')
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'fallback_secret_key')
     app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', app.config['SECRET_KEY'])
+    
+    # Configuración Auth0
     app.config['AUTH0_DOMAIN'] = os.environ.get('AUTH0_DOMAIN')
-    app.config['AUTH0_API_IDENTIFIER'] = os.environ.get('AUTH0_API_IDENTIFIER')
+    app.config['AUTH0_CLIENT_ID'] = os.environ.get('AUTH0_CLIENT_ID')
+    app.config['AUTH0_CLIENT_SECRET'] = os.environ.get('AUTH0_CLIENT_SECRET')
+    app.config['AUTH0_CALLBACK_URL'] = os.environ.get('AUTH0_CALLBACK_URL')
+    app.config['AUTH0_AUDIENCE'] = os.environ.get('AUTH0_AUDIENCE')
 
-    # Habilitar CORS para toda la aplicación o rutas específicas
-    CORS(app, resources={r"/api/*": {"origins": "http://localhost:5173", "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"], "allow_headers": ["Content-Type", "Authorization"]}})
+    # CORS
+    CORS(app, resources={
+        r"/api/*": {
+            "origins": os.environ.get('CORS_ORIGINS', 'http://localhost:5173'), 
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"], 
+            "allow_headers": ["Content-Type", "Authorization"]
+        }
+    })
 
-    # Inicializar extensiones con la app
+    # Inicializar extensiones
     db.init_app(app)
     bcrypt.init_app(app)
-    migrate.init_app(app, db)  # Migrate necesita la app y db
-    jwt_manager.init_app(app)  # Inicializa el JWTManager
+    migrate.init_app(app, db)
+    jwt_manager.init_app(app)
+    
+ 
 
-    # Importar blueprints aquí para evitar importaciones circulares
+    oauth.register(
+    'auth0',
+    client_id=app.config['AUTH0_CLIENT_ID'],
+    client_secret=app.config['AUTH0_CLIENT_SECRET'],
+    api_base_url=f"https://{app.config['AUTH0_DOMAIN']}",
+    access_token_url=f"https://{app.config['AUTH0_DOMAIN']}/oauth/token",
+    authorize_url=f"https://{app.config['AUTH0_DOMAIN']}/authorize",
+    client_kwargs={
+        'scope': 'openid profile email',
+        'audience': app.config['AUTH0_AUDIENCE']
+    },
+)
+    # Registrar blueprints (importarlos aquí para evitar circular imports)
     from app.routes.auth_routes import auth_bp
     from app.routes.cursos import cursos_bp
     from app.routes.test_routes import test_bp
     from app.routes.contacto_routes import contacto_bp
     
-    # Registrar blueprints
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(cursos_bp, url_prefix='/api/cursos')
     app.register_blueprint(test_bp, url_prefix='/api/test')

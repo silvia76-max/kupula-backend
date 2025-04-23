@@ -1,4 +1,4 @@
-from flask import Blueprint, app, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_cors import CORS
 from flask_bcrypt import Bcrypt
 from app import db, bcrypt
@@ -7,12 +7,19 @@ from flask_jwt_extended import (
     create_access_token, jwt_required,
     get_jwt_identity, create_refresh_token
 )
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLALchemyError
 import re
 from sqlalchemy import or_
+import jwt
+from functools import wraps
+from flask import current_app
+from app import oauth
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 
+# Función para obtener la configuración de Auth0
+def get_auth0():
+      return oauth.auth0
 
 def validate_email(email):
     """Valida el formato del email"""
@@ -23,105 +30,105 @@ def validate_password(password):
     """Valida que la contraseña tenga al menos 8 caracteres"""
     if len(password) < 8:
         return False
-    # Validación adicional de la contraseña (al menos una letra mayúscula, al menos un número)
     if not re.search(r'[A-Z]', password):
         return False
     if not re.search(r'\d', password):
         return False
     return True
-@auth_bp.route('/register', methods=['POST'])
-def register():
-    data = request.get_json(force=True)
 
-    # Validaciones básicas
-    required_fields = ['username', 'email', 'password']
-    if not all(field in data for field in required_fields):
-        return jsonify(message="Todos los campos son requeridos"), 400
+def auth0_required(f):
+    """Decorator para endpoints que requieren autenticación con Auth0"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'Authorization' not in request.headers:
+            return jsonify(message="Token de autorización faltante"), 401
+            
+        token = request.headers['Authorization'].split(' ')[1]
+        try:
+            payload = jwt.decode(
+                token,
+                current_app.config['JWT_SECRET_KEY'],
+                algorithms=['HS256'],
+                options={'verify_aud': False}
+            )
+        except jwt.ExpiredSignatureError:
+            return jsonify(message="Token expirado"), 401
+        except jwt.InvalidTokenError:
+            return jsonify(message="Token inválido"), 401
+        return f(*args, **kwargs)
+    return decorated_function
 
-    if not validate_email(data['email']):
-        return jsonify(message="Formato de email inválido"), 400
+@auth_bp.route('/auth0/login', methods=['GET'])
+def auth0_login():
+    """Redirige al login de Auth0"""
+    auth0 = get_auth0()
+    return auth0.authorize_redirect(
+        redirect_uri=current_app.config['AUTH0_CALLBACK_URL'],
+        audience=current_app.config['AUTH0_AUDIENCE']
+    )
 
-    if not validate_password(data['password']):
-        return jsonify(message="La contraseña debe tener al menos 8 caracteres, una letra mayúscula y un número"), 400
-
-    # Verificar existencia de usuario
-    if User.query.filter(or_(User.email == data['email'], User.username == data['username'])).first():
-        return jsonify(message="Email o nombre de usuario ya registrados"), 409  # 409 Conflict
-
+@auth_bp.route('/auth0/callback', methods=['GET'])
+def auth0_callback():
+    """Callback después del login exitoso con Auth0"""
     try:
-        # Usar el método set_password del modelo User para encriptar la contraseña
-        new_user = User(
-            username=data['username'],
-            email=data['email'],
-            role=data.get('role', 'user')
-        )
-        new_user.set_password(data['password'])  # Encriptar la contraseña
+        auth0 = get_auth0()
+        token = auth0.authorize_access_token()
+        userinfo = token.get('userinfo')
+        
+        if not userinfo:
+            return jsonify(message="No se pudo obtener la información del usuario"), 400
 
-        # Guardar el nuevo usuario en la base de datos
-        db.session.add(new_user)
-        db.session.commit()
+        # Buscar o crear usuario en nuestra base de datos
+        user = User.query.filter_by(auth0_id=userinfo['sub']).first()
+        
+        if not user:
+            user = User(
+                auth0_id=userinfo['sub'],
+                email=userinfo.get('email', userinfo['name']),
+                username=userinfo.get('nickname', userinfo['name'].split('@')[0]),
+                role='user',
+                email_verified=userinfo.get('email_verified', False)
+            )
+            db.session.add(user)
+            db.session.commit()
 
-        # Crear token inmediatamente después del registro
         access_token = create_access_token(identity={
-            'id': new_user.id,
-            'username': new_user.username,
-            'role': new_user.role
+            'id': user.id,
+            'username': user.username,
+            'role': user.role,
+            'auth0_id': user.auth0_id
         })
         refresh_token = create_refresh_token(identity={
-            'id': new_user.id
+            'id': user.id,
+            'auth0_id': user.auth0_id
         })
 
         return jsonify(
-            message="Usuario registrado correctamente",
             access_token=access_token,
             refresh_token=refresh_token,
-             redirect_url="/login"
-        ), 201
-    
-    except SQLAlchemyError as e:
-        db.session.rollback()
-        return jsonify(message="Error en la base de datos", error=str(e)), 500
-    
-@auth_bp.route('/login', methods=['POST'])
-def login():
-    data = request.get_json()
+            user={
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'role': user.role,
+                'auth0_id': user.auth0_id
+            }
+        ), 200
 
-    if not data or not data.get('email') or not data.get('password'):
-        return jsonify(message="Email y contraseña son requeridos"), 400
+    except Exception as e:
+        current_app.logger.error(f"Error en callback de Auth0: {str(e)}")
+        return jsonify(message="Error en el proceso de autenticación"), 500
 
-    user = User.query.filter_by(email=data['email']).first()
-
-    if not user or not bcrypt.check_password_hash(user.password, data['password']):
-        return jsonify(message="Credenciales inválidas"), 401
-
-    # Crear tokens
-    access_token = create_access_token(identity={
-        'id': user.id,
-        'username': user.username,
-        'role': user.role
-    })
-    refresh_token = create_refresh_token(identity={
-        'id': user.id
-    })
-
-    return jsonify(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        user={
-            'id': user.id,
-            'username': user.username,
-            'email': user.email,
-            'role': user.role
-        }
-    ), 200
 @auth_bp.after_request
 def after_request(response):
-    db.session.remove()  # Limpiar la sesión después de cada solicitud
+    """Limpieza después de cada request"""
+    db.session.remove()
     return response
 
 @auth_bp.route('/refresh', methods=['POST'])
 @jwt_required(refresh=True)
 def refresh():
+    """Refrescar token JWT"""
     current_user = get_jwt_identity()
     new_token = create_access_token(identity=current_user)
     return jsonify(access_token=new_token), 200
@@ -129,6 +136,7 @@ def refresh():
 @auth_bp.route('/profile', methods=['GET'])
 @jwt_required()
 def profile():
+    """Obtener perfil del usuario"""
     current_user = get_jwt_identity()
     user = User.query.get(current_user['id'])
 
@@ -140,12 +148,14 @@ def profile():
         'username': user.username,
         'email': user.email,
         'role': user.role,
-        'created_at': user.created_at.isoformat() if user.created_at else None
+        'created_at': user.created_at.isoformat() if user.created_at else None,
+        'auth0_id': getattr(user, 'auth0_id', None)  # Compatible con usuarios locales y Auth0
     }), 200
+
 @auth_bp.route('/check_db', methods=['GET'])
 def check_db():
+    """Verificar conexión a la base de datos"""
     try:
-        # Realiza una consulta simple a la base de datos
         db.session.execute('SELECT 1')
         return jsonify(message="Conexión a la base de datos exitosa"), 200
     except Exception as e:
