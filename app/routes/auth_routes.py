@@ -7,7 +7,7 @@ from flask_jwt_extended import (
     create_access_token, jwt_required,
     get_jwt_identity, create_refresh_token
 )
-from sqlalchemy.exc import SQLALchemyError
+from sqlalchemy.exc import SQLAlchemyError
 import re
 from sqlalchemy import or_
 import jwt
@@ -160,3 +160,32 @@ def check_db():
         return jsonify(message="Conexión a la base de datos exitosa"), 200
     except Exception as e:
         return jsonify(message=f"Error al conectar a la base de datos: {str(e)}"), 500
+@auth_bp.route('/db-create', methods=['POST'])
+def db_create():
+    print(">> db-create llamado, payload:", request.json)
+    data = request.json
+    # valida email y contraseña…
+    if not validate_email(data.get('email')):
+        return jsonify(message="Email inválido"), 400
+    if not validate_password(data.get('password')):
+        return jsonify(message="Contraseña inválida"), 400
+
+    pw_hash = bcrypt.generate_password_hash(data['password']).decode('utf-8')
+    user = User(email=data['email'], username=data['name'], password=pw_hash)
+
+    try:
+        db.session.add(user)
+        db.session.commit()
+        return jsonify(user_id=str(user.id)), 201
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify(message="Usuario ya existe"), 409
+
+@auth_bp.route('/db-login', methods=['POST'])
+def db_login():
+    print(">> db-login llamado, payload:", request.json)
+    data = request.json
+    user = User.query.filter_by(email=data.get('email')).first()
+    if user and bcrypt.check_password_hash(user.password, data.get('password')):
+        return jsonify(user_id=str(user.id), email=user.email), 200
+    return jsonify(message="Credenciales inválidas"), 401
