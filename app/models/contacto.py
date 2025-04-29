@@ -1,7 +1,7 @@
 from app import db
 
 class Contacto(db.Model):
-    __tablename__ = 'contactos'
+    __tablename__ = 'contacto'
     
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(80), nullable=False)

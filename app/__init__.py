@@ -10,16 +10,12 @@ from authlib.integrations.flask_client import OAuth
 import sys
 import authlib  
 
-print("PYTHONPATH:", sys.path)
-print("Authlib cargado desde:", authlib.__file__)
-
 # Inicializar extensiones
 db = SQLAlchemy()
 bcrypt = Bcrypt()
 migrate = Migrate()
 jwt_manager = JWTManager()
 oauth = OAuth()
-
 load_dotenv()
 
 def create_app():
